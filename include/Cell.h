@@ -3,12 +3,12 @@
 #include <SFML/Graphics.h>
 #include "Int2.h"
 
-#define WINDOW_WIDTH        1920
-#define WINDOW_HEIGHT       1080
-#define CELL_SIZE_PIXELS_X  15
-#define CELL_SIZE_PIXELS_Y  15
-#define CELL_COUNT_X        (WINDOW_WIDTH/CELL_SIZE_PIXELS_X)
-#define CELL_COUNT_Y        (WINDOW_HEIGHT/CELL_SIZE_PIXELS_Y)
+/*#define windowDimensions.x        1920
+#define windowDimensions.y       1080
+#define cellSizePixels  15
+#define cellSizePixels  15
+#define cellCountX        (windowDimensions.x/cellSizePixels)
+#define cellCountY        (windowDimensions.y/cellSizePixels)*/
 
 typedef struct {
     bool currentState;
@@ -16,6 +16,5 @@ typedef struct {
     Int2 position;
 } Cell;
 
-void Cell_drawToBuffer(const Cell cell, sfVertexArray* screenBuffer);
-void Cell_drawToBufferDebug(const Cell cell, sfVertexArray* screenBuffer);
-int Cell_countNeighbors(const Int2 centerPos, const Cell* cells);
+void Cell_drawToBuffer(const Cell cell, sfVertexArray* screenBuffer, const int cellSizePixels, const Int2 windowDimensions);
+int Cell_countNeighbors(const Int2 centerPos, const Cell* cells, const int cellCountX);

@@ -7,24 +7,29 @@
 
 #include "Cell.h"
 
-#define WINDOW_SIZE         {WINDOW_WIDTH, WINDOW_HEIGHT}
+#define WINDOW_SIZE         {windowDimensions.x, windowDimensions.y}
 #define WINDOW_BIT_DEPTH    8
 #define WINDOW_TITLE        "The Game of Life"
-
-#define CENTER_WINDOW_ON_SCREEN(X) sfRenderWindow_setPosition(X, (sfVector2i){(monitorSize.x * 0.5f) - ((float)WINDOW_WIDTH * 0.5f), (monitorSize.y * 0.5f) - ((float)WINDOW_HEIGHT * 0.5f)});
 
 int main() {
     // prompt user for custom tickrate
     char customRateResponse;
-    bool useCustomRate;
-    int gameUpdateRateMilli = 8000;
-    printf("Use Custom Tickrate? (Default = 8000) (Return if no): ");
-    scanf("%c", &customRateResponse);
-    useCustomRate = (customRateResponse == 0 || customRateResponse == 'y');
+    bool useCustomSettings;
 
-    if(useCustomRate) {
-        printf("Enter Tickrate: ");
+    int gameUpdateRateMilli = 4000;
+    int cellSizePixels = 4;
+
+    printf("Use Custom Settings? (Enter/Return if no): ");
+    scanf("%c", &customRateResponse);
+    useCustomSettings = (customRateResponse == 'y');
+
+    if(useCustomSettings) {
+        printf("Enter Tickrate (Default = %d): ", gameUpdateRateMilli);
         scanf("%d", &gameUpdateRateMilli);
+        
+        printf("Enter Cell Size (Default = %d): ", cellSizePixels);
+        scanf("%d", &cellSizePixels);
+        cellSizePixels += (cellSizePixels < 2);
     }
 
     const float gameUpdateRateSecond = (float)(gameUpdateRateMilli) / 100000.0f;
@@ -33,28 +38,32 @@ int main() {
 
     srand((unsigned int)time(NULL));
 
-    sfRenderWindow* renderWindow = sfRenderWindow_create((sfVideoMode){WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_BIT_DEPTH}, WINDOW_TITLE, sfClose, NULL);
     const sfVector2i monitorSize = {sfVideoMode_getDesktopMode().width, sfVideoMode_getDesktopMode().height};
-    CENTER_WINDOW_ON_SCREEN(renderWindow);
+    const Int2 windowDimensions = {sfVideoMode_getDesktopMode().width, sfVideoMode_getDesktopMode().height};
+    sfRenderWindow* renderWindow = sfRenderWindow_create((sfVideoMode){windowDimensions.x, windowDimensions.y, WINDOW_BIT_DEPTH}, WINDOW_TITLE, sfFullscreen, NULL);
+
+    const int cellCountX = (windowDimensions.x/cellSizePixels);
+    const int cellCountY = (windowDimensions.y/cellSizePixels);
+
 
     sfClock* clock = sfClock_create();
 
     sfVertexArray* screenBuffer = sfVertexArray_create();
     sfVertexArray_setPrimitiveType(screenBuffer, sfPoints);
-    sfVertexArray_resize(screenBuffer, WINDOW_WIDTH * WINDOW_HEIGHT);
+    sfVertexArray_resize(screenBuffer, windowDimensions.x * windowDimensions.y);
 
     // initializing cells
-    Cell cells[CELL_COUNT_X * CELL_COUNT_Y] = { false, false };
+    Cell* cells = (Cell*)calloc(cellCountX * cellCountY, sizeof(Cell));
 
-    int xInCells;
-    int yInCells;
-    for(yInCells = 0; yInCells < CELL_COUNT_Y; yInCells++) {
-        for(xInCells = 0; xInCells < CELL_COUNT_X; xInCells++) {
-            cells[yInCells * CELL_COUNT_X + xInCells].position = (Int2){xInCells, yInCells};
-            cells[yInCells * CELL_COUNT_X + xInCells].intendedState = rand() % 2;
+    Int2 currentCellPos;
+    for(currentCellPos.y = 0; currentCellPos.y < cellCountY; currentCellPos.y++) {
+        for(currentCellPos.x = 0; currentCellPos.x < cellCountX; currentCellPos.x++) {
+            cells[currentCellPos.y * cellCountX + currentCellPos.x].position = (Int2){currentCellPos.x, currentCellPos.y};
+            cells[currentCellPos.y * cellCountX + currentCellPos.x].intendedState = rand() % 2;
         }
     }
 
+    // window loop
     bool windowClose;
     do {
         windowClose = !sfRenderWindow_isOpen(renderWindow) || sfKeyboard_isKeyPressed(sfKeyEscape);
@@ -72,37 +81,32 @@ int main() {
         }
 
         const bool readyToTick = timePassed >= gameUpdateRateSecond;
-        if(readyToTick) {
-            for(yInCells = 0; yInCells < CELL_COUNT_Y; yInCells++) {
-                for(xInCells = 0; xInCells < CELL_COUNT_X; xInCells++) {
-                    // update cell state before drawing
-                    cells[yInCells * CELL_COUNT_X + xInCells].currentState = cells[yInCells * CELL_COUNT_X + xInCells].intendedState;
-                    Cell_drawToBuffer(cells[yInCells * CELL_COUNT_X + xInCells], screenBuffer);
-                }
-            }
+        if(!readyToTick) continue;
 
-            // update cells intended state for next cycle
-            for(yInCells = 0; yInCells < CELL_COUNT_Y; yInCells++) {
-                for(xInCells = 0; xInCells < CELL_COUNT_X; xInCells++) {
-                    Cell* currentCell = &cells[yInCells * CELL_COUNT_X + xInCells];
-                    const int currentCellNeighbors = Cell_countNeighbors((Int2){xInCells, yInCells}, cells);
-                    const bool currentCellIsAlive = cells[yInCells * CELL_COUNT_X + xInCells].currentState;
-                    if(currentCellIsAlive) {
-                        if(currentCellNeighbors < 2) {
-                            currentCell->intendedState = false;
-                        } else if(currentCellNeighbors > 3) {
-                            currentCell->intendedState = false;
-                        }
-                    } else {
-                        if(currentCellNeighbors == 3) {
-                            currentCell->intendedState = true;
-                        }
-                    }
-                }
+        for(currentCellPos.y = 0; currentCellPos.y < cellCountY; currentCellPos.y++) {
+            for(currentCellPos.x = 0; currentCellPos.x < cellCountX; currentCellPos.x++) {
+                // update cell state before drawing
+                cells[currentCellPos.y * cellCountX + currentCellPos.x].currentState = cells[currentCellPos.y * cellCountX + currentCellPos.x].intendedState;
+                Cell_drawToBuffer(cells[currentCellPos.y * cellCountX + currentCellPos.x], screenBuffer, cellSizePixels, windowDimensions);
             }
-
-            timePassed = 0.0f;
         }
+
+        // update cells intended state for next cycle
+        for(currentCellPos.y = 0; currentCellPos.y < cellCountY; currentCellPos.y++) {
+            for(currentCellPos.x = 0; currentCellPos.x < cellCountX; currentCellPos.x++) {
+                Cell* currentCell = &cells[currentCellPos.y * cellCountX + currentCellPos.x];
+                const int currentCellNeighbors = Cell_countNeighbors((Int2){currentCellPos.x, currentCellPos.y}, cells, cellCountX);
+                const bool currentCellIsAlive = cells[currentCellPos.y * cellCountX + currentCellPos.x].currentState;
+
+                currentCell->intendedState *= (currentCellNeighbors >= 2) && currentCellIsAlive;
+                currentCell->intendedState *= (currentCellNeighbors <= 3) && currentCellIsAlive;
+                if(!currentCellIsAlive) {
+                    currentCell->intendedState = (currentCellNeighbors == 3);
+                }
+            }
+        }
+
+        timePassed = 0.0f;
 
         // draw everything out to the window
         sfRenderWindow_clear(renderWindow, sfBlack);
