@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <SFML/Graphics.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -10,11 +11,24 @@
 #define WINDOW_BIT_DEPTH    8
 #define WINDOW_TITLE        "The Game of Life"
 
-#define GAME_UPDATE_RATE    0.08f
-
 #define CENTER_WINDOW_ON_SCREEN(X) sfRenderWindow_setPosition(X, (sfVector2i){(monitorSize.x * 0.5f) - ((float)WINDOW_WIDTH * 0.5f), (monitorSize.y * 0.5f) - ((float)WINDOW_HEIGHT * 0.5f)});
 
 int main() {
+    // prompt user for custom tickrate
+    char customRateResponse;
+    bool useCustomRate;
+    int gameUpdateRateMilli = 8000;
+    printf("Use Custom Tickrate? (Default = 8000) (Return if no): ");
+    scanf("%c", &customRateResponse);
+    useCustomRate = (customRateResponse == 0 || customRateResponse == 'y');
+
+    if(useCustomRate) {
+        printf("Enter Tickrate: ");
+        scanf("%d", &gameUpdateRateMilli);
+    }
+
+    const float gameUpdateRateSecond = (float)(gameUpdateRateMilli) / 100000.0f;
+
     float timePassed = 0.0f;
 
     srand((unsigned int)time(NULL));
@@ -57,7 +71,7 @@ int main() {
             }
         }
 
-        const bool readyToTick = timePassed >= GAME_UPDATE_RATE;
+        const bool readyToTick = timePassed >= gameUpdateRateSecond;
         if(readyToTick) {
             for(yInCells = 0; yInCells < CELL_COUNT_Y; yInCells++) {
                 for(xInCells = 0; xInCells < CELL_COUNT_X; xInCells++) {

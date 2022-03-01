@@ -5,10 +5,10 @@
 
 #define WINDOW_WIDTH        1920
 #define WINDOW_HEIGHT       1080
-#define CELL_COUNT_X        320
-#define CELL_COUNT_Y        180
-#define CELL_SIZE_PIXELS_X  (WINDOW_WIDTH/CELL_COUNT_X)
-#define CELL_SIZE_PIXELS_Y  (WINDOW_HEIGHT/CELL_COUNT_Y)
+#define CELL_SIZE_PIXELS_X  15
+#define CELL_SIZE_PIXELS_Y  15
+#define CELL_COUNT_X        (WINDOW_WIDTH/CELL_SIZE_PIXELS_X)
+#define CELL_COUNT_Y        (WINDOW_HEIGHT/CELL_SIZE_PIXELS_Y)
 
 typedef struct {
     bool currentState;
