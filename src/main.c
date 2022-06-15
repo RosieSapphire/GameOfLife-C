@@ -5,118 +5,134 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "Cell.h"
+#include "cell.h"
+#include "int2.h"
 
-#define WINDOW_SIZE         {windowDimensions.x, windowDimensions.y}
+#define WINDOW_SIZE         {desktop_mode.width, desktop_mode.height}
 #define WINDOW_BIT_DEPTH    8
 #define WINDOW_TITLE        "The Game of Life"
 
 int main() {
-    // prompt user for custom tickrate
-    char customRateResponse;
-    bool useCustomSettings;
+    bool window_close;
+	bool ready_to_tick;
+	char *c;
 
-    int gameUpdateRateMilli = 4000;
-    int cellSizePixels = 4;
+    sfEvent e;
+	sfVideoMode desktop_mode;
+	sfRenderWindow* render_window;
+	sfVertexArray *screen_buffer;
+	sfClock *clock;
+	int2_t monitor_size;
 
+    /* prompt user for custom tickrate */
+    char custom_rate_responce;
+    bool use_custom_settings;
+
+    int game_update_rate_milli = 4000;
+    int cell_size_pixels = 4;
+    const float game_update_rate_second = (float)(game_update_rate_milli) / 100000.0f;
+
+    float time_elapsed = 0.0f;
+	float time_delta;
+
+	int cell_count_x;
+	int cell_count_y;
+    int2_t cur_cell_pos;
+
+	cell_t* cells;
+
+	c = malloc(sizeof(char));
     printf("Use Custom Settings? (Enter/Return if no): ");
-    scanf("%c", &customRateResponse);
-    useCustomSettings = (customRateResponse == 'y');
+    *c = scanf("%c", &custom_rate_responce);
+    use_custom_settings = (custom_rate_responce == 'y');
 
-    if(useCustomSettings) {
-        printf("Enter Tickrate (Default = %d): ", gameUpdateRateMilli);
-        scanf("%d", &gameUpdateRateMilli);
+    if(use_custom_settings) {
+        printf("Enter Tickrate (Default = %d): ", game_update_rate_milli);
+        *c = scanf("%d", &game_update_rate_milli);
         
-        printf("Enter Cell Size (Default = %d): ", cellSizePixels);
-        scanf("%d", &cellSizePixels);
-        cellSizePixels += (cellSizePixels < 2);
+        printf("Enter cell_t Size (Default = %d): ", cell_size_pixels);
+        *c = scanf("%d", &cell_size_pixels);
+        cell_size_pixels += (cell_size_pixels < 2);
     }
-
-    const float gameUpdateRateSecond = (float)(gameUpdateRateMilli) / 100000.0f;
-
-    float timePassed = 0.0f;
 
     srand((unsigned int)time(NULL));
 
-    const sfVector2i monitorSize = {sfVideoMode_getDesktopMode().width, sfVideoMode_getDesktopMode().height};
-    const Int2 windowDimensions = {sfVideoMode_getDesktopMode().width, sfVideoMode_getDesktopMode().height};
-    sfRenderWindow* renderWindow = sfRenderWindow_create((sfVideoMode){windowDimensions.x, windowDimensions.y, WINDOW_BIT_DEPTH}, WINDOW_TITLE, sfFullscreen, NULL);
+	desktop_mode = sfVideoMode_getDesktopMode();
+    monitor_size = int2_create(desktop_mode.width, desktop_mode.height);
+    render_window = sfRenderWindow_create(desktop_mode, WINDOW_TITLE, sfFullscreen, NULL);
 
-    const int cellCountX = (windowDimensions.x/cellSizePixels);
-    const int cellCountY = (windowDimensions.y/cellSizePixels);
+    cell_count_x = (desktop_mode.width / cell_size_pixels);
+    cell_count_y = (desktop_mode.height / cell_size_pixels);
 
+    clock = sfClock_create();
 
-    sfClock* clock = sfClock_create();
+    screen_buffer = sfVertexArray_create();
+    sfVertexArray_setPrimitiveType(screen_buffer, sfPoints);
+    sfVertexArray_resize(screen_buffer, desktop_mode.width * desktop_mode.height);
 
-    sfVertexArray* screenBuffer = sfVertexArray_create();
-    sfVertexArray_setPrimitiveType(screenBuffer, sfPoints);
-    sfVertexArray_resize(screenBuffer, windowDimensions.x * windowDimensions.y);
+    /* initializing cells */
+    cells = (cell_t*)calloc(cell_count_x * cell_count_y, sizeof(cell_t));
 
-    // initializing cells
-    Cell* cells = (Cell*)calloc(cellCountX * cellCountY, sizeof(Cell));
-
-    Int2 currentCellPos;
-    for(currentCellPos.y = 0; currentCellPos.y < cellCountY; currentCellPos.y++) {
-        for(currentCellPos.x = 0; currentCellPos.x < cellCountX; currentCellPos.x++) {
-            cells[currentCellPos.y * cellCountX + currentCellPos.x].position = (Int2){currentCellPos.x, currentCellPos.y};
-            cells[currentCellPos.y * cellCountX + currentCellPos.x].intendedState = rand() % 2;
+    for(cur_cell_pos.y = 0; cur_cell_pos.y < cell_count_y; cur_cell_pos.y++) {
+        for(cur_cell_pos.x = 0; cur_cell_pos.x < cell_count_x; cur_cell_pos.x++) {
+            cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x].position = int2_create(cur_cell_pos.x, cur_cell_pos.y);
+            cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x].state_next = rand() % 2;
         }
     }
 
-    // window loop
-    bool windowClose;
+    /* window loop */
     do {
-        windowClose = !sfRenderWindow_isOpen(renderWindow) || sfKeyboard_isKeyPressed(sfKeyEscape);
+        window_close = !sfRenderWindow_isOpen(render_window) || sfKeyboard_isKeyPressed(sfKeyEscape);
 
-        const float timeDelta = (float)(sfClock_restart(clock).microseconds) / 1000000.0f;
-        timePassed += timeDelta;
+        time_delta = sfTime_asSeconds(sfClock_restart(clock));
+        time_elapsed += time_delta;
 
-        { // poll events
-            sfEvent e;
-            while(sfRenderWindow_pollEvent(renderWindow, &e)) {
-                if(e.type == sfEvtClosed) {
-                    sfRenderWindow_close(renderWindow);
+        /* poll events */
+        while(sfRenderWindow_pollEvent(render_window, &e)) {
+            if(e.type == sfEvtClosed) {
+                sfRenderWindow_close(render_window);
+            }
+        }
+
+        ready_to_tick = time_elapsed >= game_update_rate_second;
+        if(!ready_to_tick) continue;
+
+        for(cur_cell_pos.y = 0; cur_cell_pos.y < cell_count_y; cur_cell_pos.y++) {
+            for(cur_cell_pos.x = 0; cur_cell_pos.x < cell_count_x; cur_cell_pos.x++) {
+                /* update cell state before drawing */
+                cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x].state_now = cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x].state_next;
+                cell_draw_to_buffer(cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x], screen_buffer, cell_size_pixels, monitor_size);
+            }
+        }
+
+        /* update cells intended state for next cycle */
+        for(cur_cell_pos.y = 0; cur_cell_pos.y < cell_count_y; cur_cell_pos.y++) {
+            for(cur_cell_pos.x = 0; cur_cell_pos.x < cell_count_x; cur_cell_pos.x++) {
+                cell_t* cell_cur = &cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x];
+                const int cell_cur_neighbors = cell_count_neighbors(int2_create(cur_cell_pos.x, cur_cell_pos.y), cells, cell_count_x);
+                const bool cell_cur_alive = cells[cur_cell_pos.y * cell_count_x + cur_cell_pos.x].state_now;
+
+                cell_cur->state_next *= (cell_cur_neighbors >= 2) && cell_cur_alive;
+                cell_cur->state_next *= (cell_cur_neighbors <= 3) && cell_cur_alive;
+                if(!cell_cur_alive) {
+                    cell_cur->state_next = (cell_cur_neighbors == 3);
                 }
             }
         }
 
-        const bool readyToTick = timePassed >= gameUpdateRateSecond;
-        if(!readyToTick) continue;
+        time_elapsed = 0.0f;
 
-        for(currentCellPos.y = 0; currentCellPos.y < cellCountY; currentCellPos.y++) {
-            for(currentCellPos.x = 0; currentCellPos.x < cellCountX; currentCellPos.x++) {
-                // update cell state before drawing
-                cells[currentCellPos.y * cellCountX + currentCellPos.x].currentState = cells[currentCellPos.y * cellCountX + currentCellPos.x].intendedState;
-                Cell_drawToBuffer(cells[currentCellPos.y * cellCountX + currentCellPos.x], screenBuffer, cellSizePixels, windowDimensions);
-            }
-        }
+        /* draw everything out to the window */
+        sfRenderWindow_clear(render_window, sfBlack);
+        sfRenderWindow_drawVertexArray(render_window, screen_buffer, NULL);
+        sfRenderWindow_display(render_window);
+    } while(!window_close);
 
-        // update cells intended state for next cycle
-        for(currentCellPos.y = 0; currentCellPos.y < cellCountY; currentCellPos.y++) {
-            for(currentCellPos.x = 0; currentCellPos.x < cellCountX; currentCellPos.x++) {
-                Cell* currentCell = &cells[currentCellPos.y * cellCountX + currentCellPos.x];
-                const int currentCellNeighbors = Cell_countNeighbors((Int2){currentCellPos.x, currentCellPos.y}, cells, cellCountX);
-                const bool currentCellIsAlive = cells[currentCellPos.y * cellCountX + currentCellPos.x].currentState;
-
-                currentCell->intendedState *= (currentCellNeighbors >= 2) && currentCellIsAlive;
-                currentCell->intendedState *= (currentCellNeighbors <= 3) && currentCellIsAlive;
-                if(!currentCellIsAlive) {
-                    currentCell->intendedState = (currentCellNeighbors == 3);
-                }
-            }
-        }
-
-        timePassed = 0.0f;
-
-        // draw everything out to the window
-        sfRenderWindow_clear(renderWindow, sfBlack);
-        sfRenderWindow_drawVertexArray(renderWindow, screenBuffer, NULL);
-        sfRenderWindow_display(renderWindow);
-    } while(!windowClose);
-
-    sfVertexArray_destroy(screenBuffer);
+    sfVertexArray_destroy(screen_buffer);
     sfClock_destroy(clock);
-    sfRenderWindow_destroy(renderWindow);
+    sfRenderWindow_destroy(render_window);
+
+	free(c);
 
     return 0;
 }

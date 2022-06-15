@@ -1,0 +1,20 @@
+[
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-ansi",
+            "-pedantic",
+            "-Og",
+            "-g3",
+            "-Wall",
+            "-Werror",
+            "-I./include/",
+            "-I/usr/include",
+            "-I/usr/local/include/",
+            "src/main.c"
+        ],
+        "directory": "/home/rosie/dev/c/sfml/gameoflife-c",
+        "file": "src/main.c"
+    }
+]
