@@ -1,1 +1,4 @@
-/build
+game-of-life
+compile_commands.json
+*.obj
+
